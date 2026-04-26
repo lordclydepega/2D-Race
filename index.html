@@ -5,23 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2D Race: Pro Circuit</title>
     <style>
-        body { 
-            margin: 0; 
-            background: #0a0a0a; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            overflow: hidden; 
-        }
-        #container { 
-            position: relative; 
-            width: 95vw; 
-            max-width: 1200px; 
-            aspect-ratio: 12 / 8; 
-            border: 6px solid #333; 
-            background: #2d5a27;
-        }
+        body { margin: 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; background: #2d5a27; }
         canvas { width: 100%; height: 100%; display: block; }
     </style>
 </head>
@@ -32,6 +17,13 @@
 </div>
 
 <script>
+    // The complex path for the winding track
+    const TRACK_POINTS = [
+        {x: 200, y: 700}, {x: 1000, y: 700}, {x: 1100, y: 600}, {x: 1100, y: 400}, 
+        {x: 900, y: 300}, {x: 700, y: 500}, {x: 500, y: 300}, {x: 700, y: 100}, 
+        {x: 300, y: 100}, {x: 100, y: 300}, {x: 100, y: 600}   
+    ];
+
     class Car {
         constructor() {
             this.x = 400;
@@ -41,21 +33,14 @@
         }
 
         update(keys) {
-            // Acceleration & Braking logic
             if (keys['ArrowUp']) this.speed += 0.15;
             if (keys['ArrowDown']) this.speed -= 0.12;
-
-            // Steering logic (only functional when the car is moving)
             if (Math.abs(this.speed) > 0.1) {
                 let dir = this.speed > 0 ? 1 : -1;
                 if (keys['ArrowLeft']) this.angle -= 0.05 * dir;
                 if (keys['ArrowRight']) this.angle += 0.05 * dir;
             }
-
-            // Standard air/rolling resistance (friction)
             this.speed *= 0.97;
-
-            // Update position based on velocity and angle
             this.x += Math.cos(this.angle) * this.speed;
             this.y += Math.sin(this.angle) * this.speed;
         }
@@ -64,8 +49,6 @@
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(this.angle);
-            
-            // Draw a temporary red rectangle to represent the car
             ctx.fillStyle = "#e60000";
             ctx.fillRect(-20, -12, 40, 24);
             ctx.restore();
@@ -78,28 +61,49 @@
             this.ctx = this.canvas.getContext('2d');
             this.car = new Car();
             this.keys = {};
-
-            // Listen for keydown and keyup to handle multiple simultaneous presses
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
-
             this.loop();
         }
 
-        loop() {
-            // Logic Update
-            this.car.update(this.keys);
+        // Draws the layered track: Shoulder -> Rumble -> Asphalt -> Lines
+        drawTrack() {
+            const c = this.ctx;
+            c.fillStyle = "#2d5a27"; 
+            c.fillRect(0, 0, 1200, 800);
 
-            // Clear the frame and draw car at new position
-            this.ctx.fillStyle = "#2d5a27";
-            this.ctx.fillRect(0, 0, 1200, 800);
-            this.car.draw(this.ctx);
+            const renderCircuit = (width, color, dash = []) => {
+                c.strokeStyle = color; 
+                c.lineWidth = width;
+                c.setLineDash(dash); 
+                c.lineJoin = "round"; 
+                c.lineCap = "round";
+                c.beginPath();
+                c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
+                for(let i=1; i<TRACK_POINTS.length; i++) c.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
+                c.closePath(); 
+                c.stroke();
+            };
+
+            renderCircuit(150, "#ccc"); // Shoulder
+            renderCircuit(140, "#900", [20, 20]); // Red Rumble Strips
+            renderCircuit(130, "#444"); // Main Asphalt Road
+            renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]); // Center lines
             
+            // Finish Line
+            c.setLineDash([]);
+            c.fillStyle = "white"; 
+            c.fillRect(390, 635, 15, 130);
+        }
+
+        loop() {
+            this.drawTrack(); // Render track first
+            this.car.update(this.keys);
+            this.car.draw(this.ctx);
             requestAnimationFrame(() => this.loop());
         }
     }
 
-    // Initialize the game instance
     const game = new RaceGame();
 </script>
 </body>
