@@ -17,7 +17,6 @@
 </div>
 
 <script>
-    // The complex path for the winding track
     const TRACK_POINTS = [
         {x: 200, y: 700}, {x: 1000, y: 700}, {x: 1100, y: 600}, {x: 1100, y: 400}, 
         {x: 900, y: 300}, {x: 700, y: 500}, {x: 500, y: 300}, {x: 700, y: 100}, 
@@ -32,15 +31,19 @@
             this.speed = 0;
         }
 
-        update(keys) {
+        update(keys, onGrass) {
             if (keys['ArrowUp']) this.speed += 0.15;
             if (keys['ArrowDown']) this.speed -= 0.12;
+            
             if (Math.abs(this.speed) > 0.1) {
                 let dir = this.speed > 0 ? 1 : -1;
                 if (keys['ArrowLeft']) this.angle -= 0.05 * dir;
                 if (keys['ArrowRight']) this.angle += 0.05 * dir;
             }
-            this.speed *= 0.97;
+
+            // Apply high friction if on grass, normal if on road
+            this.speed *= (onGrass ? 0.85 : 0.97);
+
             this.x += Math.cos(this.angle) * this.speed;
             this.y += Math.sin(this.angle) * this.speed;
         }
@@ -66,7 +69,6 @@
             this.loop();
         }
 
-        // Draws the layered track: Shoulder -> Rumble -> Asphalt -> Lines
         drawTrack() {
             const c = this.ctx;
             c.fillStyle = "#2d5a27"; 
@@ -85,20 +87,25 @@
                 c.stroke();
             };
 
-            renderCircuit(150, "#ccc"); // Shoulder
-            renderCircuit(140, "#900", [20, 20]); // Red Rumble Strips
-            renderCircuit(130, "#444"); // Main Asphalt Road
-            renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]); // Center lines
+            renderCircuit(150, "#ccc");
+            renderCircuit(140, "#900", [20, 20]);
+            renderCircuit(130, "#444");
+            renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]);
             
-            // Finish Line
             c.setLineDash([]);
             c.fillStyle = "white"; 
             c.fillRect(390, 635, 15, 130);
         }
 
         loop() {
-            this.drawTrack(); // Render track first
-            this.car.update(this.keys);
+            this.drawTrack();
+
+            // Check pixel color at car's position
+            const p = this.ctx.getImageData(this.car.x, this.car.y, 1, 1).data;
+            // If Green channel is high and Red is low, it's grass
+            const onGrass = (p[1] > 80 && p[0] < 60);
+
+            this.car.update(this.keys, onGrass);
             this.car.draw(this.ctx);
             requestAnimationFrame(() => this.loop());
         }
