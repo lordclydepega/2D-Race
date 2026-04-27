@@ -5,14 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2D Race: Pro Circuit</title>
     <style>
-        body { margin: 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; background: #2d5a27; }
+        body { margin: 0; background: #0a0a0a; color: white; font-family: monospace; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; background: #2d5a27; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
+        
+        /* HUD Styling */
+        .hud { 
+            position: absolute; top: 5%; width: 100%; 
+            display: flex; justify-content: space-around; 
+            font-weight: bold; font-size: clamp(1rem, 3vw, 1.8rem); 
+            text-shadow: 2px 2px #000; pointer-events: none; z-index: 10; 
+            color: #ffd700; 
+        }
     </style>
 </head>
 <body>
 
 <div id="container">
+    <div class="hud">
+        <div>LAP: <span id="lapCount">1</span>/3</div>
+        <div>TIME: <span id="timer">0.00</span></div>
+        <div>BEST: <span id="best">--</span></div>
+    </div>
     <canvas id="raceCanvas" width="1200" height="800"></canvas>
 </div>
 
@@ -23,38 +37,35 @@
         {x: 300, y: 100}, {x: 100, y: 300}, {x: 100, y: 600}   
     ];
 
+    class Obstacle {
+        constructor(x, y) { this.x = x; this.y = y; this.radius = 12; }
+        draw(ctx) {
+            ctx.save(); ctx.translate(this.x, this.y);
+            ctx.fillStyle = "#ff6600"; ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(10, 10); ctx.lineTo(0, -15); ctx.fill();
+            ctx.fillStyle = "white"; ctx.fillRect(-4, -2, 8, 4); ctx.restore();
+        }
+    }
+
     class Car {
         constructor() {
-            this.x = 400;
-            this.y = 700;
-            this.angle = 0;
-            this.speed = 0;
+            this.x = 400; this.y = 700; this.angle = 0; this.speed = 0;
         }
-
-        update(keys, onGrass) {
+        update(keys, onGrass, collision) {
+            if (collision) this.speed *= -0.5;
             if (keys['ArrowUp']) this.speed += 0.15;
             if (keys['ArrowDown']) this.speed -= 0.12;
-            
             if (Math.abs(this.speed) > 0.1) {
                 let dir = this.speed > 0 ? 1 : -1;
                 if (keys['ArrowLeft']) this.angle -= 0.05 * dir;
                 if (keys['ArrowRight']) this.angle += 0.05 * dir;
             }
-
-            // Apply high friction if on grass, normal if on road
             this.speed *= (onGrass ? 0.85 : 0.97);
-
             this.x += Math.cos(this.angle) * this.speed;
             this.y += Math.sin(this.angle) * this.speed;
         }
-
         draw(ctx) {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
-            ctx.fillStyle = "#e60000";
-            ctx.fillRect(-20, -12, 40, 24);
-            ctx.restore();
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.fillStyle = "#e60000"; ctx.fillRect(-20, -12, 40, 24); ctx.restore();
         }
     }
 
@@ -63,49 +74,61 @@
             this.canvas = document.getElementById('raceCanvas');
             this.ctx = this.canvas.getContext('2d');
             this.car = new Car();
+            this.obstacles = [];
             this.keys = {};
+            this.startTime = Date.now(); // Start timing immediately for now
+            
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
+            
+            this.drawTrack();
+            this.generateObstacles();
             this.loop();
+        }
+
+        generateObstacles() {
+            for(let i=0; i<25; i++) {
+                let tx = Math.random()*1200, ty = Math.random()*800;
+                const p = this.ctx.getImageData(tx, ty, 1, 1).data;
+                if (p[0] === 68 && Math.sqrt((tx-400)**2 + (ty-700)**2) > 200) {
+                    this.obstacles.push(new Obstacle(tx, ty));
+                }
+            }
         }
 
         drawTrack() {
             const c = this.ctx;
-            c.fillStyle = "#2d5a27"; 
-            c.fillRect(0, 0, 1200, 800);
-
+            c.fillStyle = "#2d5a27"; c.fillRect(0, 0, 1200, 800);
             const renderCircuit = (width, color, dash = []) => {
-                c.strokeStyle = color; 
-                c.lineWidth = width;
-                c.setLineDash(dash); 
-                c.lineJoin = "round"; 
-                c.lineCap = "round";
+                c.strokeStyle = color; c.lineWidth = width;
+                c.setLineDash(dash); c.lineJoin = "round"; c.lineCap = "round";
                 c.beginPath();
                 c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
                 for(let i=1; i<TRACK_POINTS.length; i++) c.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
-                c.closePath(); 
-                c.stroke();
+                c.closePath(); c.stroke();
             };
-
-            renderCircuit(150, "#ccc");
-            renderCircuit(140, "#900", [20, 20]);
-            renderCircuit(130, "#444");
+            renderCircuit(150, "#ccc"); renderCircuit(140, "#900", [20, 20]); renderCircuit(130, "#444");
             renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]);
-            
-            c.setLineDash([]);
-            c.fillStyle = "white"; 
-            c.fillRect(390, 635, 15, 130);
+            c.setLineDash([]); c.fillStyle = "white"; c.fillRect(390, 635, 15, 130);
         }
 
         loop() {
             this.drawTrack();
-
-            // Check pixel color at car's position
             const p = this.ctx.getImageData(this.car.x, this.car.y, 1, 1).data;
-            // If Green channel is high and Red is low, it's grass
             const onGrass = (p[1] > 80 && p[0] < 60);
 
-            this.car.update(this.keys, onGrass);
+            let collision = false;
+            for(let o of this.obstacles) {
+                if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) collision = true;
+            }
+
+            this.car.update(this.keys, onGrass, collision);
+            
+            // Timer Logic
+            let currentTime = ((Date.now() - this.startTime) / 1000).toFixed(2);
+            document.getElementById('timer').innerText = currentTime;
+
+            this.obstacles.forEach(o => o.draw(this.ctx));
             this.car.draw(this.ctx);
             requestAnimationFrame(() => this.loop());
         }
