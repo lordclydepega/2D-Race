@@ -3,30 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D Race: Pro Circuit</title>
+    <title>2D Race</title>
     <style>
-        body { margin: 0; background: #0a0a0a; color: white; font-family: monospace; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; background: #2d5a27; overflow: hidden; }
-        canvas { width: 100%; height: 100%; display: block; }
+        body { margin: 0; background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.8); overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; background: #2d5a27; }
         
-        /* HUD Styling */
-        .hud { 
-            position: absolute; top: 5%; width: 100%; 
-            display: flex; justify-content: space-around; 
-            font-weight: bold; font-size: clamp(1rem, 3vw, 1.8rem); 
-            text-shadow: 2px 2px #000; pointer-events: none; z-index: 10; 
-            color: #ffd700; 
-        }
+        /* UI Overlays */
+        .ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 30; }
+        .active { display: flex; }
+
+        .hud { position: absolute; top: 5%; width: 100%; display: none; justify-content: space-around; font-weight: bold; font-size: clamp(1rem, 3vw, 1.8rem); text-shadow: 2px 2px #000; pointer-events: none; z-index: 10; color: #ffd700; font-family: monospace; }
+        
+        h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; }
+        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; width: 300px; }
+        
+        button { padding: 15px; font-size: 1.2rem; background: #ffd700; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-transform: uppercase; transition: 0.2s; color: #000; }
+        button:hover { background: #fff; transform: scale(1.05); }
+        button.secondary { background: #444; color: white; }
     </style>
 </head>
 <body>
 
 <div id="container">
-    <div class="hud">
+    <div class="hud" id="gameHud">
         <div>LAP: <span id="lapCount">1</span>/3</div>
         <div>TIME: <span id="timer">0.00</span></div>
         <div>BEST: <span id="best">--</span></div>
     </div>
+
+    <div id="menu" class="ui active">
+        <h1>2D RACE</h1>
+        <div class="btn-group">
+            <button onclick="game.start()">Start Race</button>
+            <button class="secondary">View Scores</button>
+            <button class="secondary" onclick="window.close()">Exit</button>
+        </div>
+    </div>
+
     <canvas id="raceCanvas" width="1200" height="800"></canvas>
 </div>
 
@@ -47,9 +61,8 @@
     }
 
     class Car {
-        constructor() {
-            this.x = 400; this.y = 700; this.angle = 0; this.speed = 0;
-        }
+        constructor() { this.reset(); }
+        reset() { this.x = 400; this.y = 700; this.angle = 0; this.speed = 0; }
         update(keys, onGrass, collision) {
             if (collision) this.speed *= -0.5;
             if (keys['ArrowUp']) this.speed += 0.15;
@@ -76,17 +89,28 @@
             this.car = new Car();
             this.obstacles = [];
             this.keys = {};
-            this.startTime = Date.now(); // Start timing immediately for now
+            this.state = 'MENU'; // Initial State
             
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
             
-            this.drawTrack();
-            this.generateObstacles();
             this.loop();
         }
 
+        start() {
+            this.state = 'PLAYING';
+            this.currentLap = 1;
+            this.hasHitCheckpoint = false;
+            this.car.reset();
+            this.startTime = Date.now();
+            this.generateObstacles();
+            document.getElementById('menu').classList.remove('active');
+            document.getElementById('gameHud').style.display = 'flex';
+        }
+
         generateObstacles() {
+            this.obstacles = [];
+            this.drawTrack(); // Draw once to check pixels
             for(let i=0; i<25; i++) {
                 let tx = Math.random()*1200, ty = Math.random()*800;
                 const p = this.ctx.getImageData(tx, ty, 1, 1).data;
@@ -114,19 +138,30 @@
 
         loop() {
             this.drawTrack();
-            const p = this.ctx.getImageData(this.car.x, this.car.y, 1, 1).data;
-            const onGrass = (p[1] > 80 && p[0] < 60);
+            if (this.state === 'PLAYING') {
+                const p = this.ctx.getImageData(this.car.x, this.car.y, 1, 1).data;
+                const onGrass = (p[1] > 80 && p[0] < 60);
 
-            let collision = false;
-            for(let o of this.obstacles) {
-                if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) collision = true;
+                let collision = false;
+                for(let o of this.obstacles) {
+                    if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) collision = true;
+                }
+
+                this.car.update(this.keys, onGrass, collision);
+                
+                if (this.car.x > 450 && this.car.x < 750 && this.car.y < 150) this.hasHitCheckpoint = true;
+
+                if (this.car.x > 380 && this.car.x < 420 && this.car.y > 630 && this.hasHitCheckpoint) {
+                    if (this.currentLap < 3) {
+                        this.currentLap++;
+                        this.hasHitCheckpoint = false;
+                        document.getElementById('lapCount').innerText = this.currentLap;
+                    }
+                }
+
+                let currentTime = ((Date.now() - this.startTime) / 1000).toFixed(2);
+                document.getElementById('timer').innerText = currentTime;
             }
-
-            this.car.update(this.keys, onGrass, collision);
-            
-            // Timer Logic
-            let currentTime = ((Date.now() - this.startTime) / 1000).toFixed(2);
-            document.getElementById('timer').innerText = currentTime;
 
             this.obstacles.forEach(o => o.draw(this.ctx));
             this.car.draw(this.ctx);
@@ -135,7 +170,6 @@
     }
 
     const game = new RaceGame();
-    
 </script>
 </body>
 </html>
