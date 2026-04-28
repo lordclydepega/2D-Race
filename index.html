@@ -34,10 +34,17 @@
             font-family: 'Courier New', Courier, monospace; 
         }
 
+        /* NEW: Exit Button Styling */
+        #exitBtn {
+            position: absolute; bottom: 20px; right: 20px;
+            padding: 10px 20px; font-size: 0.9rem; background: rgba(255,0,0,0.6);
+            color: white; border: 1px solid #ff4444; border-radius: 5px;
+            cursor: pointer; z-index: 20; display: none; transition: 0.3s;
+        }
+        #exitBtn:hover { background: rgba(255,0,0,0.9); }
+
         h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; letter-spacing: 5px; }
         h2 { font-size: 2.2rem; color: #fff; margin: 10px 0; }
-        .result-text { font-size: 1.2rem; color: #aaa; margin-bottom: 20px; }
-
         .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
         
         button { 
@@ -57,6 +64,8 @@
         <div>TIME: <span id="timer">0.00</span></div>
         <div>BEST: <span id="best">--</span></div>
     </div>
+
+    <button id="exitBtn" onclick="game.showMenu()">Quit Race (ESC)</button>
 
     <div id="menu" class="ui active">
         <h1>2D RACE</h1>
@@ -98,14 +107,10 @@
         constructor(x, y) { this.x = x; this.y = y; }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y);
-            // Shaded Base
             ctx.fillStyle = "#a34100"; ctx.fillRect(-12, 8, 24, 4);
-            // Main Cone Body
             ctx.fillStyle = "#ff6600"; ctx.beginPath(); 
             ctx.moveTo(-10, 8); ctx.lineTo(10, 8); ctx.lineTo(0, -18); ctx.fill();
-            // Reflective Stripe (Detail)
-            ctx.fillStyle = "white"; ctx.fillRect(-4, -4, 8, 5); 
-            ctx.restore();
+            ctx.fillStyle = "white"; ctx.fillRect(-4, -4, 8, 5); ctx.restore();
         }
     }
 
@@ -127,14 +132,10 @@
         }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
-            // Main Car Body
             ctx.fillStyle = "#e60000"; ctx.fillRect(-22, -12, 44, 24);
-            // Windshield and Roof
             ctx.fillStyle = "#1a1a1a"; ctx.fillRect(-5, -10, 15, 20); 
             ctx.fillStyle = "#333"; ctx.fillRect(2, -8, 6, 16); 
-            // Headlights
             ctx.fillStyle = "#fff"; ctx.fillRect(18, -10, 4, 6); ctx.fillRect(18, 4, 4, 6);
-            // Spoiler
             ctx.fillStyle = "#000"; ctx.fillRect(-24, -12, 4, 24);
             ctx.restore();
         }
@@ -148,7 +149,11 @@
             this.bestTime = localStorage.getItem('raceBestTime') || null;
             this.updateBestDisplay();
             window.addEventListener('resize', () => this.resize());
-            window.addEventListener('keydown', e => this.keys[e.code] = true);
+            window.addEventListener('keydown', e => {
+                this.keys[e.code] = true;
+                // ESC key to return to menu
+                if (e.code === 'Escape' && this.state === 'PLAYING') this.showMenu();
+            });
             window.addEventListener('keyup', e => this.keys[e.code] = false);
             this.resize(); this.loop();
         }
@@ -174,14 +179,13 @@
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('menu').classList.add('active');
             document.getElementById('gameHud').style.display = 'none';
+            document.getElementById('exitBtn').style.display = 'none'; // Hide Quit button
         }
 
         showScoreboard() {
             const scoreList = document.getElementById('scoreList');
             const best = localStorage.getItem('raceBestTime');
-            scoreList.innerHTML = best 
-                ? `<div style="color: #ffd700;">1. PERSONAL BEST: ${best}s</div>`
-                : "No scores recorded yet!";
+            scoreList.innerHTML = best ? `<div style="color: #ffd700;">1. PERSONAL BEST: ${best}s</div>` : "No scores recorded yet!";
             document.getElementById('menu').classList.remove('active');
             document.getElementById('scoreboard').classList.add('active');
         }
@@ -191,6 +195,7 @@
             this.car.reset(); this.startTime = Date.now(); this.generateObstacles();
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('gameHud').style.display = 'flex';
+            document.getElementById('exitBtn').style.display = 'block'; // Show Quit button
             document.getElementById('lapCount').innerText = "1";
         }
 
@@ -198,11 +203,11 @@
             this.state = 'FINISHED';
             const finalTime = parseFloat(((Date.now() - this.startTime) / 1000).toFixed(2));
             if (!this.bestTime || finalTime < this.bestTime) {
-                this.bestTime = finalTime;
-                localStorage.setItem('raceBestTime', finalTime);
+                this.bestTime = finalTime; localStorage.setItem('raceBestTime', finalTime);
                 this.updateBestDisplay();
             }
             document.getElementById('gameHud').style.display = 'none';
+            document.getElementById('exitBtn').style.display = 'none';
             document.getElementById('results').classList.add('active');
             document.getElementById('finalTime').innerText = `${finalTime}s`;
         }
