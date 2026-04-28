@@ -17,8 +17,7 @@
             overflow: hidden; display: flex; align-items: center; justify-content: center;
         }
         canvas { width: 100%; height: 100%; display: block; }
-
-        /* UI Overlays */
+        
         .ui { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             display: none; flex-direction: column; align-items: center; 
@@ -37,6 +36,7 @@
 
         h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; letter-spacing: 5px; }
         h2 { font-size: 2.2rem; color: #fff; margin: 10px 0; }
+        .result-text { font-size: 1.2rem; color: #aaa; margin-bottom: 20px; }
 
         .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
         
@@ -69,8 +69,7 @@
 
     <div id="scoreboard" class="ui">
         <h1>TOP SCORES</h1>
-        <div id="scoreList" style="margin: 20px 0; font-size: 1.5rem; line-height: 2;">
-            </div>
+        <div id="scoreList" style="margin: 20px 0; font-size: 1.5rem; line-height: 2;"></div>
         <div class="btn-group">
             <button class="secondary" onclick="game.showMenu()">Back to Menu</button>
         </div>
@@ -99,9 +98,14 @@
         constructor(x, y) { this.x = x; this.y = y; }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y);
+            // Shaded Base
+            ctx.fillStyle = "#a34100"; ctx.fillRect(-12, 8, 24, 4);
+            // Main Cone Body
             ctx.fillStyle = "#ff6600"; ctx.beginPath(); 
-            ctx.moveTo(-10, 10); ctx.lineTo(10, 10); ctx.lineTo(0, -15); ctx.fill();
-            ctx.fillStyle = "white"; ctx.fillRect(-4, -2, 8, 4); ctx.restore();
+            ctx.moveTo(-10, 8); ctx.lineTo(10, 8); ctx.lineTo(0, -18); ctx.fill();
+            // Reflective Stripe (Detail)
+            ctx.fillStyle = "white"; ctx.fillRect(-4, -4, 8, 5); 
+            ctx.restore();
         }
     }
 
@@ -123,8 +127,15 @@
         }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
-            ctx.fillStyle = "#e60000"; ctx.fillRect(-20, -12, 40, 24);
-            ctx.fillStyle = "#000"; ctx.fillRect(8, -12, 5, 24);
+            // Main Car Body
+            ctx.fillStyle = "#e60000"; ctx.fillRect(-22, -12, 44, 24);
+            // Windshield and Roof
+            ctx.fillStyle = "#1a1a1a"; ctx.fillRect(-5, -10, 15, 20); 
+            ctx.fillStyle = "#333"; ctx.fillRect(2, -8, 6, 16); 
+            // Headlights
+            ctx.fillStyle = "#fff"; ctx.fillRect(18, -10, 4, 6); ctx.fillRect(18, 4, 4, 6);
+            // Spoiler
+            ctx.fillStyle = "#000"; ctx.fillRect(-24, -12, 4, 24);
             ctx.restore();
         }
     }
@@ -134,14 +145,11 @@
             this.canvas = document.getElementById('raceCanvas');
             this.ctx = this.canvas.getContext('2d');
             this.car = new Car(); this.obstacles = []; this.keys = {}; this.state = 'MENU';
-            
             this.bestTime = localStorage.getItem('raceBestTime') || null;
             this.updateBestDisplay();
-
             window.addEventListener('resize', () => this.resize());
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
-            
             this.resize(); this.loop();
         }
 
@@ -161,7 +169,6 @@
             document.getElementById('best').innerText = this.bestTime ? `${this.bestTime}s` : "--";
         }
 
-        // New Logic for Scoreboard Navigation
         showMenu() {
             this.state = 'MENU';
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
