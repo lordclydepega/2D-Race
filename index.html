@@ -6,86 +6,47 @@
     <title>2D RACE</title>
     <style>
         body { 
-            margin: 0; 
-            background: #0a0a0a; 
-            color: white; 
+            margin: 0; background: #0a0a0a; color: white; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            overflow: hidden; 
+            display: flex; align-items: center; justify-content: center; 
+            height: 100vh; overflow: hidden; 
         }
-        
         #container { 
-            position: relative; 
-            background: #2d5a27; 
-            border: 6px solid #333; 
-            border-radius: 15px; 
-            box-shadow: 0 0 50px rgba(0,0,0,0.8); 
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: relative; background: #2d5a27; border: 6px solid #333; 
+            border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.8); 
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
         }
-
-        canvas { 
-            width: 100%; 
-            height: 100%; 
-            display: block; 
-        }
+        canvas { width: 100%; height: 100%; display: block; }
 
         /* UI Overlays */
         .ui { 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            display: none; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            background: rgba(0,0,0,0.85); 
-            z-index: 30; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            display: none; flex-direction: column; align-items: center; 
+            justify-content: center; background: rgba(0,0,0,0.85); z-index: 30; 
             text-align: center;
         }
         .active { display: flex; }
 
         .hud { 
-            position: absolute; 
-            top: 5%; 
-            width: 100%; 
-            display: none; 
-            justify-content: space-around; 
-            font-weight: bold; 
-            font-size: clamp(1rem, 3vw, 1.8rem); 
-            text-shadow: 2px 2px #000; 
-            pointer-events: none; 
-            z-index: 10; 
-            color: #ffd700; 
+            position: absolute; top: 5%; width: 100%; display: none; 
+            justify-content: space-around; font-weight: bold; 
+            font-size: clamp(1rem, 3vw, 1.8rem); text-shadow: 2px 2px #000; 
+            pointer-events: none; z-index: 10; color: #ffd700; 
             font-family: 'Courier New', Courier, monospace; 
         }
 
         h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; letter-spacing: 5px; }
         h2 { font-size: 2.2rem; color: #fff; margin: 10px 0; }
-        .result-text { font-size: 1.2rem; color: #aaa; margin-bottom: 20px; }
 
         .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
         
         button { 
-            padding: 15px; 
-            font-size: 1.1rem; 
-            background: #ffd700; 
-            border: none; 
-            cursor: pointer; 
-            font-weight: bold; 
-            border-radius: 8px; 
-            text-transform: uppercase; 
-            transition: 0.3s; 
-            color: #000; 
+            padding: 15px; font-size: 1.1rem; background: #ffd700; border: none; 
+            cursor: pointer; font-weight: bold; border-radius: 8px; 
+            text-transform: uppercase; transition: 0.3s; color: #000; 
         }
         button:hover { background: #fff; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(255,215,0,0.4); }
         button.secondary { background: #333; color: white; border: 1px solid #555; }
-        button.secondary:hover { background: #444; }
     </style>
 </head>
 <body>
@@ -101,15 +62,23 @@
         <h1>2D RACE</h1>
         <div class="btn-group">
             <button onclick="game.start()">Start Race</button>
-            <button class="secondary">View Scores</button>
-            <button class="secondary" onclick="alert('To exit, please close the tab.')">Exit</button>
+            <button class="secondary" onclick="game.showScoreboard()">View Scores</button>
+            <button class="secondary" onclick="alert('Please close the tab to exit.')">Exit</button>
+        </div>
+    </div>
+
+    <div id="scoreboard" class="ui">
+        <h1>TOP SCORES</h1>
+        <div id="scoreList" style="margin: 20px 0; font-size: 1.5rem; line-height: 2;">
+            </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="game.showMenu()">Back to Menu</button>
         </div>
     </div>
 
     <div id="results" class="ui">
         <h1>FINISH!</h1>
         <h2 id="finalTime">0.00s</h2>
-        <p class="result-text">Circuit completed successfully.</p>
         <div class="btn-group">
             <button onclick="game.start()">Race Again</button>
             <button class="secondary" onclick="location.reload()">Main Menu</button>
@@ -155,7 +124,7 @@
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
             ctx.fillStyle = "#e60000"; ctx.fillRect(-20, -12, 40, 24);
-            ctx.fillStyle = "#000"; ctx.fillRect(8, -12, 5, 24); // Windshield
+            ctx.fillStyle = "#000"; ctx.fillRect(8, -12, 5, 24);
             ctx.restore();
         }
     }
@@ -164,10 +133,7 @@
         constructor() {
             this.canvas = document.getElementById('raceCanvas');
             this.ctx = this.canvas.getContext('2d');
-            this.car = new Car();
-            this.obstacles = [];
-            this.keys = {};
-            this.state = 'MENU';
+            this.car = new Car(); this.obstacles = []; this.keys = {}; this.state = 'MENU';
             
             this.bestTime = localStorage.getItem('raceBestTime') || null;
             this.updateBestDisplay();
@@ -176,8 +142,7 @@
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
             
-            this.resize();
-            this.loop();
+            this.resize(); this.loop();
         }
 
         resize() {
@@ -189,23 +154,35 @@
                 height = window.innerHeight - padding;
                 width = (height * 1200) / 800;
             }
-            container.style.width = width + 'px';
-            container.style.height = height + 'px';
+            container.style.width = width + 'px'; container.style.height = height + 'px';
         }
 
         updateBestDisplay() {
             document.getElementById('best').innerText = this.bestTime ? `${this.bestTime}s` : "--";
         }
 
-        start() {
-            this.state = 'PLAYING';
-            this.currentLap = 1;
-            this.hasHitCheckpoint = false;
-            this.car.reset();
-            this.startTime = Date.now();
-            this.generateObstacles();
+        // New Logic for Scoreboard Navigation
+        showMenu() {
+            this.state = 'MENU';
+            document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
+            document.getElementById('menu').classList.add('active');
+            document.getElementById('gameHud').style.display = 'none';
+        }
+
+        showScoreboard() {
+            const scoreList = document.getElementById('scoreList');
+            const best = localStorage.getItem('raceBestTime');
+            scoreList.innerHTML = best 
+                ? `<div style="color: #ffd700;">1. PERSONAL BEST: ${best}s</div>`
+                : "No scores recorded yet!";
             document.getElementById('menu').classList.remove('active');
-            document.getElementById('results').classList.remove('active');
+            document.getElementById('scoreboard').classList.add('active');
+        }
+
+        start() {
+            this.state = 'PLAYING'; this.currentLap = 1; this.hasHitCheckpoint = false;
+            this.car.reset(); this.startTime = Date.now(); this.generateObstacles();
+            document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('gameHud').style.display = 'flex';
             document.getElementById('lapCount').innerText = "1";
         }
@@ -224,8 +201,7 @@
         }
 
         generateObstacles() {
-            this.obstacles = [];
-            this.drawTrack();
+            this.obstacles = []; this.drawTrack();
             for(let i=0; i<25; i++) {
                 let tx = Math.random()*1200, ty = Math.random()*800;
                 const p = this.ctx.getImageData(tx, ty, 1, 1).data;
@@ -241,8 +217,7 @@
             const renderCircuit = (width, color, dash = []) => {
                 c.strokeStyle = color; c.lineWidth = width;
                 c.setLineDash(dash); c.lineJoin = "round"; c.lineCap = "round";
-                c.beginPath();
-                c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
+                c.beginPath(); c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
                 for(let i=1; i<TRACK_POINTS.length; i++) c.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
                 c.closePath(); c.stroke();
             };
@@ -270,8 +245,7 @@
                 }
                 document.getElementById('timer').innerText = ((Date.now() - this.startTime) / 1000).toFixed(2);
             }
-            this.obstacles.forEach(o => o.draw(this.ctx));
-            this.car.draw(this.ctx);
+            this.obstacles.forEach(o => o.draw(this.ctx)); this.car.draw(this.ctx);
             requestAnimationFrame(() => this.loop());
         }
     }
