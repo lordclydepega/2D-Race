@@ -9,15 +9,16 @@
         #container { position: relative; width: 95vw; max-width: 1200px; aspect-ratio: 12 / 8; border: 6px solid #333; border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.8); overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; background: #2d5a27; }
         
-        /* UI Overlays */
-        .ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 30; }
+        .ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 30; text-align: center; }
         .active { display: flex; }
 
         .hud { position: absolute; top: 5%; width: 100%; display: none; justify-content: space-around; font-weight: bold; font-size: clamp(1rem, 3vw, 1.8rem); text-shadow: 2px 2px #000; pointer-events: none; z-index: 10; color: #ffd700; font-family: monospace; }
         
         h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; }
-        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; width: 300px; }
+        h2 { font-size: 2rem; color: #fff; }
+        .result-text { font-size: 1.5rem; color: #aaa; margin-bottom: 20px; }
         
+        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; width: 300px; }
         button { padding: 15px; font-size: 1.2rem; background: #ffd700; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-transform: uppercase; transition: 0.2s; color: #000; }
         button:hover { background: #fff; transform: scale(1.05); }
         button.secondary { background: #444; color: white; }
@@ -38,6 +39,16 @@
             <button onclick="game.start()">Start Race</button>
             <button class="secondary">View Scores</button>
             <button class="secondary" onclick="window.close()">Exit</button>
+        </div>
+    </div>
+
+    <div id="results" class="ui">
+        <h1>FINISH!</h1>
+        <h2 id="finalTime">0.00</h2>
+        <p class="result-text">Laps Completed: 3</p>
+        <div class="btn-group">
+            <button onclick="game.start()">Race Again</button>
+            <button class="secondary" onclick="location.reload()">Main Menu</button>
         </div>
     </div>
 
@@ -89,7 +100,7 @@
             this.car = new Car();
             this.obstacles = [];
             this.keys = {};
-            this.state = 'MENU'; // Initial State
+            this.state = 'MENU';
             
             window.addEventListener('keydown', e => this.keys[e.code] = true);
             window.addEventListener('keyup', e => this.keys[e.code] = false);
@@ -104,13 +115,24 @@
             this.car.reset();
             this.startTime = Date.now();
             this.generateObstacles();
+            
             document.getElementById('menu').classList.remove('active');
+            document.getElementById('results').classList.remove('active');
             document.getElementById('gameHud').style.display = 'flex';
+            document.getElementById('lapCount').innerText = "1";
+        }
+
+        finishRace() {
+            this.state = 'FINISHED';
+            const finalTime = ((Date.now() - this.startTime) / 1000).toFixed(2);
+            document.getElementById('gameHud').style.display = 'none';
+            document.getElementById('results').classList.add('active');
+            document.getElementById('finalTime').innerText = `Time: ${finalTime}s`;
         }
 
         generateObstacles() {
             this.obstacles = [];
-            this.drawTrack(); // Draw once to check pixels
+            this.drawTrack();
             for(let i=0; i<25; i++) {
                 let tx = Math.random()*1200, ty = Math.random()*800;
                 const p = this.ctx.getImageData(tx, ty, 1, 1).data;
@@ -156,6 +178,8 @@
                         this.currentLap++;
                         this.hasHitCheckpoint = false;
                         document.getElementById('lapCount').innerText = this.currentLap;
+                    } else {
+                        this.finishRace();
                     }
                 }
 
