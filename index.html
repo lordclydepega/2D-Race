@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D RACE</title>
+    <title>2D RACE </title>
     <style>
         body { 
             margin: 0; background: #0a0a0a; color: white; 
@@ -34,61 +34,85 @@
             font-family: 'Courier New', Courier, monospace; 
         }
 
-        /* NEW: Exit Button Styling */
+        #speedoContainer {
+            position: absolute; bottom: 20px; left: 20px; width: 140px; height: 70px;
+            background: rgba(0,0,0,0.7); border-radius: 70px 70px 0 0;
+            border: 2px solid #444; display: none; align-items: flex-end; justify-content: center;
+            overflow: hidden; z-index: 15;
+        }
+        #needle {
+            position: absolute; bottom: 0; left: 50%; width: 3px; height: 55px;
+            background: #ff0000; transform-origin: bottom center;
+            transform: rotate(-90deg); transition: transform 0.1s ease-out;
+        }
+        #speedText { position: absolute; bottom: 5px; font-weight: bold; font-size: 1rem; color: #fff; }
+
         #exitBtn {
-            position: absolute; bottom: 20px; right: 20px;
-            padding: 10px 20px; font-size: 0.9rem; background: rgba(255,0,0,0.6);
+            position: absolute; bottom: 20px; right: 20px; width: auto;
+            padding: 10px 25px; font-size: 0.9rem; background: rgba(255,0,0,0.5);
             color: white; border: 1px solid #ff4444; border-radius: 5px;
             cursor: pointer; z-index: 20; display: none; transition: 0.3s;
+            text-transform: uppercase; font-weight: bold;
         }
-        #exitBtn:hover { background: rgba(255,0,0,0.9); }
+        #exitBtn:hover { background: rgba(255,0,0,0.9); transform: scale(1.05); }
 
         h1 { font-size: clamp(3rem, 8vw, 5rem); color: #ffd700; margin: 0; letter-spacing: 5px; }
-        h2 { font-size: 2.2rem; color: #fff; margin: 10px 0; }
-        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
         
+        #usernameInput {
+            padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 2px solid #ffd700;
+            background: #1a1a1a; color: white; text-align: center; font-size: 1.1rem; width: 250px;
+        }
+
         button { 
             padding: 15px; font-size: 1.1rem; background: #ffd700; border: none; 
             cursor: pointer; font-weight: bold; border-radius: 8px; 
             text-transform: uppercase; transition: 0.3s; color: #000; 
         }
-        button:hover { background: #fff; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(255,215,0,0.4); }
+        button:hover { background: #fff; transform: translateY(-3px); }
         button.secondary { background: #333; color: white; border: 1px solid #555; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
     </style>
 </head>
 <body>
 
 <div id="container">
+    <div id="speedoContainer">
+        <div id="needle"></div>
+        <div id="speedText">0</div>
+    </div>
+
     <div class="hud" id="gameHud">
         <div>LAP: <span id="lapCount">1</span>/3</div>
-        <div>TIME: <span id="timer">0.00</span></div>
+        <div id="timerContainer">TIME: <span id="timer">0.00</span></div>
         <div>BEST: <span id="best">--</span></div>
     </div>
 
-    <button id="exitBtn" onclick="game.showMenu()">Quit Race (ESC)</button>
+    <button id="exitBtn" onclick="game.showMenu()">Quit (ESC)</button>
 
     <div id="menu" class="ui active">
         <h1>2D RACE</h1>
+        <input type="text" id="usernameInput" placeholder="ENTER DRIVER NAME" maxlength="12">
         <div class="btn-group">
-            <button onclick="game.start()">Start Race</button>
-            <button class="secondary" onclick="game.showScoreboard()">View Scores</button>
+            <button onclick="game.validateStart()">Start Race</button>
+            <button class="secondary" onclick="game.showScoreboard()">Hall of Fame</button>
             <button class="secondary" onclick="alert('Please close the tab to exit.')">Exit</button>
         </div>
     </div>
 
     <div id="scoreboard" class="ui">
         <h1>TOP SCORES</h1>
-        <div id="scoreList" style="margin: 20px 0; font-size: 1.5rem; line-height: 2;"></div>
+        <div id="scoreList" style="margin: 20px 0; font-size: 1.2rem; color: #ffd700; line-height: 1.6;"></div>
         <div class="btn-group">
-            <button class="secondary" onclick="game.showMenu()">Back to Menu</button>
+            <button class="secondary" onclick="game.showMenu()">Back</button>
         </div>
     </div>
 
     <div id="results" class="ui">
         <h1>FINISH!</h1>
-        <h2 id="finalTime">0.00s</h2>
+        <h2 id="finalTime" style="font-size: 2.5rem; margin: 10px 0;">0.00s</h2>
         <div class="btn-group">
-            <button onclick="game.start()">Race Again</button>
+            <button onclick="game.validateStart()">Race Again</button>
             <button class="secondary" onclick="location.reload()">Main Menu</button>
         </div>
     </div>
@@ -97,19 +121,47 @@
 </div>
 
 <script>
-    const TRACK_POINTS = [
-        {x: 200, y: 700}, {x: 1000, y: 700}, {x: 1100, y: 600}, {x: 1100, y: 400}, 
-        {x: 900, y: 300}, {x: 700, y: 500}, {x: 500, y: 300}, {x: 700, y: 100}, 
-        {x: 300, y: 100}, {x: 100, y: 300}, {x: 100, y: 600}   
-    ];
+    const TRACK_POINTS = [{x: 200, y: 700}, {x: 1000, y: 700}, {x: 1100, y: 600}, {x: 1100, y: 400}, {x: 900, y: 300}, {x: 700, y: 500}, {x: 500, y: 300}, {x: 700, y: 100}, {x: 300, y: 100}, {x: 100, y: 300}, {x: 100, y: 600}];
+
+    class Particle {
+        constructor(x, y) {
+            this.x = x; this.y = y;
+            this.size = Math.random() * 5 + 2;
+            this.life = 1.0;
+            this.vX = (Math.random() - 0.5) * 1.5;
+            this.vY = (Math.random() - 0.5) * 1.5;
+        }
+        update() { this.x += this.vX; this.y += this.vY; this.life -= 0.04; }
+        draw(ctx) {
+            ctx.fillStyle = `rgba(180, 180, 180, ${this.life})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    class SkidMark {
+        constructor(x, y, angle) { this.x = x; this.y = y; this.angle = angle; this.life = 0.6; }
+        draw(ctx) {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = "#111";
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.fillRect(-10, -11, 6, 3); ctx.fillRect(-10, 8, 6, 3);
+            ctx.restore(); ctx.globalAlpha = 1.0;
+        }
+    }
 
     class Obstacle {
-        constructor(x, y) { this.x = x; this.y = y; }
+        constructor(x, y, isDynamic = false) { 
+            this.x = x; this.baseX = x; this.y = y; 
+            this.isDynamic = isDynamic;
+            this.offset = Math.random() * Math.PI * 2;
+        }
+        update() {
+            if(this.isDynamic) this.x = this.baseX + Math.sin(Date.now() / 600 + this.offset) * 80;
+        }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y);
             ctx.fillStyle = "#a34100"; ctx.fillRect(-12, 8, 24, 4);
-            ctx.fillStyle = "#ff6600"; ctx.beginPath(); 
-            ctx.moveTo(-10, 8); ctx.lineTo(10, 8); ctx.lineTo(0, -18); ctx.fill();
+            ctx.fillStyle = "#ff6600"; ctx.beginPath(); ctx.moveTo(-10, 8); ctx.lineTo(10, 8); ctx.lineTo(0, -18); ctx.fill();
             ctx.fillStyle = "white"; ctx.fillRect(-4, -4, 8, 5); ctx.restore();
         }
     }
@@ -117,42 +169,68 @@
     class Car {
         constructor() { this.reset(); }
         reset() { this.x = 400; this.y = 700; this.angle = 0; this.speed = 0; }
-        update(keys, onGrass, collision) {
-            if (collision) this.speed *= -0.5;
-            if (keys['ArrowUp']) this.speed += 0.15;
-            if (keys['ArrowDown']) this.speed -= 0.12;
+        
+        update(keys, ctx, collisionHazard) {
+            if (keys['ArrowUp']) this.speed += 0.16;
+            if (keys['ArrowDown']) this.speed -= 0.10;
+            
             if (Math.abs(this.speed) > 0.1) {
                 let dir = this.speed > 0 ? 1 : -1;
-                if (keys['ArrowLeft']) this.angle -= 0.05 * dir;
-                if (keys['ArrowRight']) this.angle += 0.05 * dir;
+                if (keys['ArrowLeft']) this.angle -= 0.07 * dir;
+                if (keys['ArrowRight']) this.angle += 0.07 * dir;
             }
-            this.speed *= (onGrass ? 0.85 : 0.97);
-            this.x += Math.cos(this.angle) * this.speed;
-            this.y += Math.sin(this.angle) * this.speed;
+
+            this.speed *= 0.96;
+            if (this.speed > 9.5) this.speed = 9.5;
+            if (this.speed < -4.0) this.speed = -4.0;
+
+            if (collisionHazard) this.speed *= -0.4;
+
+            // FENCE COLLISION LOGIC
+            // Check multiple points around the car "nose" for better physics
+            const noseDist = 22;
+            const checkX = this.x + Math.cos(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
+            const checkY = this.y + Math.sin(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
+
+            const pixel = ctx.getImageData(checkX, checkY, 1, 1).data;
+            // Strict check: if the point is green (grass) or outside bounds, it's a hit
+            const isOffRoad = (pixel[1] > 70 && pixel[0] < 80) || pixel[3] === 0;
+
+            if (!isOffRoad) {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+            } else {
+                // Impact: stop and push back slightly
+                this.speed = -this.speed * 0.5;
+                this.x -= Math.cos(this.angle) * 2; 
+                this.y -= Math.sin(this.angle) * 2;
+                game.shake = 8;
+            }
         }
+
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
             ctx.fillStyle = "#e60000"; ctx.fillRect(-22, -12, 44, 24);
             ctx.fillStyle = "#1a1a1a"; ctx.fillRect(-5, -10, 15, 20); 
-            ctx.fillStyle = "#333"; ctx.fillRect(2, -8, 6, 16); 
             ctx.fillStyle = "#fff"; ctx.fillRect(18, -10, 4, 6); ctx.fillRect(18, 4, 4, 6);
-            ctx.fillStyle = "#000"; ctx.fillRect(-24, -12, 4, 24);
-            ctx.restore();
+            ctx.fillStyle = "#000"; ctx.fillRect(-24, -12, 4, 24); ctx.restore();
         }
     }
 
     class RaceGame {
         constructor() {
             this.canvas = document.getElementById('raceCanvas');
-            this.ctx = this.canvas.getContext('2d');
-            this.car = new Car(); this.obstacles = []; this.keys = {}; this.state = 'MENU';
+            this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+            this.car = new Car(); this.obstacles = []; this.particles = []; this.skidMarks = []; this.keys = {}; 
+            this.state = 'MENU'; this.shake = 0;
             this.bestTime = localStorage.getItem('raceBestTime') || null;
+            this.username = localStorage.getItem('raceUser') || "";
+            document.getElementById('usernameInput').value = this.username;
             this.updateBestDisplay();
             window.addEventListener('resize', () => this.resize());
-            window.addEventListener('keydown', e => {
-                this.keys[e.code] = true;
-                // ESC key to return to menu
-                if (e.code === 'Escape' && this.state === 'PLAYING') this.showMenu();
+            window.addEventListener('keydown', e => { 
+                this.keys[e.code] = true; 
+                if (e.code === 'Escape' && this.state === 'PLAYING') this.showMenu(); 
             });
             window.addEventListener('keyup', e => this.keys[e.code] = false);
             this.resize(); this.loop();
@@ -160,18 +238,20 @@
 
         resize() {
             const container = document.getElementById('container');
-            const padding = 40;
-            let width = window.innerWidth - padding;
+            let width = window.innerWidth - 40;
             let height = (width * 800) / 1200;
-            if (height > window.innerHeight - padding) {
-                height = window.innerHeight - padding;
-                width = (height * 1200) / 800;
-            }
+            if (height > window.innerHeight - 40) { height = window.innerHeight - 40; width = (height * 1200) / 800; }
             container.style.width = width + 'px'; container.style.height = height + 'px';
         }
 
-        updateBestDisplay() {
-            document.getElementById('best').innerText = this.bestTime ? `${this.bestTime}s` : "--";
+        updateBestDisplay() { document.getElementById('best').innerText = this.bestTime ? `${this.bestTime}s` : "--"; }
+
+        validateStart() {
+            const name = document.getElementById('usernameInput').value.trim();
+            if(!name) return alert("Please enter your name to race!");
+            this.username = name;
+            localStorage.setItem('raceUser', name);
+            this.start();
         }
 
         showMenu() {
@@ -179,13 +259,14 @@
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('menu').classList.add('active');
             document.getElementById('gameHud').style.display = 'none';
-            document.getElementById('exitBtn').style.display = 'none'; // Hide Quit button
+            document.getElementById('exitBtn').style.display = 'none';
+            document.getElementById('speedoContainer').style.display = 'none';
         }
 
         showScoreboard() {
-            const scoreList = document.getElementById('scoreList');
-            const best = localStorage.getItem('raceBestTime');
-            scoreList.innerHTML = best ? `<div style="color: #ffd700;">1. PERSONAL BEST: ${best}s</div>` : "No scores recorded yet!";
+            const scores = JSON.parse(localStorage.getItem('raceScores') || "[]");
+            document.getElementById('scoreList').innerHTML = scores.sort((a,b) => a.time - b.time).slice(0, 8)
+                .map((s, i) => `<div>#${i+1} ${s.name}: <strong>${s.time}s</strong></div>`).join('') || "No records yet!";
             document.getElementById('menu').classList.remove('active');
             document.getElementById('scoreboard').classList.add('active');
         }
@@ -193,71 +274,107 @@
         start() {
             this.state = 'PLAYING'; this.currentLap = 1; this.hasHitCheckpoint = false;
             this.car.reset(); this.startTime = Date.now(); this.generateObstacles();
+            this.particles = []; this.skidMarks = [];
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('gameHud').style.display = 'flex';
-            document.getElementById('exitBtn').style.display = 'block'; // Show Quit button
+            document.getElementById('exitBtn').style.display = 'block';
+            document.getElementById('speedoContainer').style.display = 'flex';
             document.getElementById('lapCount').innerText = "1";
         }
 
         finishRace() {
             this.state = 'FINISHED';
             const finalTime = parseFloat(((Date.now() - this.startTime) / 1000).toFixed(2));
-            if (!this.bestTime || finalTime < this.bestTime) {
-                this.bestTime = finalTime; localStorage.setItem('raceBestTime', finalTime);
-                this.updateBestDisplay();
+            let scores = JSON.parse(localStorage.getItem('raceScores') || "[]");
+            scores.push({name: this.username, time: finalTime});
+            localStorage.setItem('raceScores', JSON.stringify(scores));
+            if (!this.bestTime || finalTime < this.bestTime) { 
+                this.bestTime = finalTime; 
+                localStorage.setItem('raceBestTime', finalTime); 
+                this.updateBestDisplay(); 
             }
             document.getElementById('gameHud').style.display = 'none';
             document.getElementById('exitBtn').style.display = 'none';
+            document.getElementById('speedoContainer').style.display = 'none';
             document.getElementById('results').classList.add('active');
             document.getElementById('finalTime').innerText = `${finalTime}s`;
         }
 
         generateObstacles() {
             this.obstacles = []; this.drawTrack();
-            for(let i=0; i<25; i++) {
+            for(let i=0; i<12; i++) {
                 let tx = Math.random()*1200, ty = Math.random()*800;
                 const p = this.ctx.getImageData(tx, ty, 1, 1).data;
-                if (p[0] === 68 && Math.sqrt((tx-400)**2 + (ty-700)**2) > 200) {
-                    this.obstacles.push(new Obstacle(tx, ty));
+                if (p[0] === 68 && Math.sqrt((tx-400)**2 + (ty-700)**2) > 250) {
+                    this.obstacles.push(new Obstacle(tx, ty, false));
                 }
             }
+            this.obstacles.push(new Obstacle(800, 700, true));
+            this.obstacles.push(new Obstacle(100, 450, true));
+            this.obstacles.push(new Obstacle(700, 100, true));
         }
 
         drawTrack() {
             const c = this.ctx;
+            c.save();
+            if (this.shake > 0) { c.translate(Math.random()*this.shake, Math.random()*this.shake); this.shake *= 0.85; }
+            
+            // Grass
             c.fillStyle = "#2d5a27"; c.fillRect(0, 0, 1200, 800);
+            
             const renderCircuit = (width, color, dash = []) => {
-                c.strokeStyle = color; c.lineWidth = width;
-                c.setLineDash(dash); c.lineJoin = "round"; c.lineCap = "round";
+                c.strokeStyle = color; c.lineWidth = width; c.setLineDash(dash); c.lineJoin = "round"; c.lineCap = "round";
                 c.beginPath(); c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
                 for(let i=1; i<TRACK_POINTS.length; i++) c.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
                 c.closePath(); c.stroke();
             };
-            renderCircuit(150, "#ccc"); renderCircuit(140, "#900", [20, 20]);
-            renderCircuit(130, "#444"); renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]);
+            
+            // Outer Fence (Visible Barrier)
+            renderCircuit(160, "#555"); // Foundation
+            renderCircuit(154, "#ffd700", [15, 15]); // Caution Tape look
+            
+            // Road Surface
+            renderCircuit(150, "#ccc"); 
+            renderCircuit(140, "#900", [20, 20]); // Curbing
+            renderCircuit(130, "#333"); // Asphalt
+            renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]); // Lane Marker
+            
+            this.skidMarks.forEach(s => s.draw(c));
             c.setLineDash([]); c.fillStyle = "white"; c.fillRect(390, 635, 15, 130);
+            
+            this.obstacles.forEach(o => { o.update(); o.draw(c); });
+            this.particles.forEach((p, i) => { p.update(); p.draw(c); if (p.life <= 0) this.particles.splice(i, 1); });
+            this.car.draw(c); c.restore();
+        }
+
+        updateHUD() {
+            const displaySpeed = Math.abs(Math.round(this.car.speed * 20));
+            document.getElementById('speedText').innerText = displaySpeed;
+            const rotation = (Math.abs(this.car.speed) / 9.5) * 180 - 90;
+            document.getElementById('needle').style.transform = `rotate(${Math.min(90, rotation)}deg)`;
+            document.getElementById('timer').innerText = ((Date.now() - this.startTime) / 1000).toFixed(2);
         }
 
         loop() {
-            this.drawTrack();
             if (this.state === 'PLAYING') {
-                const p = this.ctx.getImageData(this.car.x, this.car.y, 1, 1).data;
-                const onGrass = (p[1] > 80 && p[0] < 60);
-                let collision = false;
-                for(let o of this.obstacles) {
-                    if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) collision = true;
+                let collisionHazard = false;
+                for(let o of this.obstacles) { 
+                    if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) { collisionHazard = true; this.shake = 10; } 
                 }
-                this.car.update(this.keys, onGrass, collision);
+                
+                this.car.update(this.keys, this.ctx, collisionHazard);
+                
+                if (Math.abs(this.car.speed) > 2) this.particles.push(new Particle(this.car.x, this.car.y));
+                if (Math.abs(this.car.speed) > 5) this.skidMarks.push(new SkidMark(this.car.x, this.car.y, this.car.angle));
+                
                 if (this.car.x > 450 && this.car.x < 750 && this.car.y < 150) this.hasHitCheckpoint = true;
                 if (this.car.x > 380 && this.car.x < 420 && this.car.y > 630 && this.hasHitCheckpoint) {
-                    if (this.currentLap < 3) {
-                        this.currentLap++; this.hasHitCheckpoint = false;
-                        document.getElementById('lapCount').innerText = this.currentLap;
-                    } else { this.finishRace(); }
+                    if (this.currentLap < 3) { this.currentLap++; this.hasHitCheckpoint = false; document.getElementById('lapCount').innerText = this.currentLap; }
+                    else { this.finishRace(); }
                 }
-                document.getElementById('timer').innerText = ((Date.now() - this.startTime) / 1000).toFixed(2);
+                this.updateHUD();
             }
-            this.obstacles.forEach(o => o.draw(this.ctx)); this.car.draw(this.ctx);
+            this.drawTrack();
             requestAnimationFrame(() => this.loop());
         }
     }
