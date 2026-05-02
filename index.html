@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D RACE </title>
+    <title>2D RACE</title>
     <style>
         body { 
             margin: 0; background: #0a0a0a; color: white; 
@@ -123,6 +123,63 @@
 <script>
     const TRACK_POINTS = [{x: 200, y: 700}, {x: 1000, y: 700}, {x: 1100, y: 600}, {x: 1100, y: 400}, {x: 900, y: 300}, {x: 700, y: 500}, {x: 500, y: 300}, {x: 700, y: 100}, {x: 300, y: 100}, {x: 100, y: 300}, {x: 100, y: 600}];
 
+    class AudioManager {
+        constructor() {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.engineOsc = null;
+            this.engineGain = null;
+        }
+
+        async initEngine() {
+            if (this.ctx.state === 'suspended') {
+                await this.ctx.resume();
+            }
+            if (this.engineOsc) return;
+            this.engineOsc = this.ctx.createOscillator();
+            this.engineGain = this.ctx.createGain();
+            this.engineOsc.type = 'sawtooth';
+            this.engineOsc.frequency.setValueAtTime(100, this.ctx.currentTime);
+            this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+            this.engineOsc.connect(this.engineGain);
+            this.engineGain.connect(this.ctx.destination);
+            this.engineOsc.start();
+        }
+
+        updateEngine(speed) {
+            if (!this.engineOsc) return;
+            const absSpeed = Math.abs(speed);
+            const freq = 100 + (absSpeed * 20);
+            const volume = Math.min(0.08, absSpeed / 100);
+            this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
+            this.engineGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.05);
+        }
+
+        playCrash() {
+            if (this.ctx.state !== 'running') return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+        }
+
+        playLap() {
+            if (this.ctx.state !== 'running') return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+        }
+    }
+
     class Particle {
         constructor(x, y) {
             this.x = x; this.y = y;
@@ -184,28 +241,29 @@
             if (this.speed > 9.5) this.speed = 9.5;
             if (this.speed < -4.0) this.speed = -4.0;
 
-            if (collisionHazard) this.speed *= -0.4;
+            if (collisionHazard) {
+                this.speed *= -0.4;
+                game.audio.playCrash();
+            }
 
-            // FENCE COLLISION LOGIC
-            // Check multiple points around the car "nose" for better physics
             const noseDist = 22;
             const checkX = this.x + Math.cos(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
             const checkY = this.y + Math.sin(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
 
             const pixel = ctx.getImageData(checkX, checkY, 1, 1).data;
-            // Strict check: if the point is green (grass) or outside bounds, it's a hit
             const isOffRoad = (pixel[1] > 70 && pixel[0] < 80) || pixel[3] === 0;
 
             if (!isOffRoad) {
                 this.x += Math.cos(this.angle) * this.speed;
                 this.y += Math.sin(this.angle) * this.speed;
             } else {
-                // Impact: stop and push back slightly
                 this.speed = -this.speed * 0.5;
                 this.x -= Math.cos(this.angle) * 2; 
                 this.y -= Math.sin(this.angle) * 2;
                 game.shake = 8;
+                game.audio.playCrash();
             }
+            game.audio.updateEngine(this.speed);
         }
 
         draw(ctx) {
@@ -221,6 +279,7 @@
         constructor() {
             this.canvas = document.getElementById('raceCanvas');
             this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+            this.audio = new AudioManager();
             this.car = new Car(); this.obstacles = []; this.particles = []; this.skidMarks = []; this.keys = {}; 
             this.state = 'MENU'; this.shake = 0;
             this.bestTime = localStorage.getItem('raceBestTime') || null;
@@ -251,11 +310,16 @@
             if(!name) return alert("Please enter your name to race!");
             this.username = name;
             localStorage.setItem('raceUser', name);
-            this.start();
+            
+            // Resume/Init audio after user click
+            this.audio.initEngine().then(() => {
+                this.start();
+            });
         }
 
         showMenu() {
             this.state = 'MENU';
+            if(this.audio.engineGain) this.audio.engineGain.gain.setTargetAtTime(0, this.audio.ctx.currentTime, 0.1);
             document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
             document.getElementById('menu').classList.add('active');
             document.getElementById('gameHud').style.display = 'none';
@@ -284,6 +348,8 @@
 
         finishRace() {
             this.state = 'FINISHED';
+            this.audio.playLap();
+            if(this.audio.engineGain) this.audio.engineGain.gain.setTargetAtTime(0, this.audio.ctx.currentTime, 0.5);
             const finalTime = parseFloat(((Date.now() - this.startTime) / 1000).toFixed(2));
             let scores = JSON.parse(localStorage.getItem('raceScores') || "[]");
             scores.push({name: this.username, time: finalTime});
@@ -318,30 +384,18 @@
             const c = this.ctx;
             c.save();
             if (this.shake > 0) { c.translate(Math.random()*this.shake, Math.random()*this.shake); this.shake *= 0.85; }
-            
-            // Grass
             c.fillStyle = "#2d5a27"; c.fillRect(0, 0, 1200, 800);
-            
             const renderCircuit = (width, color, dash = []) => {
                 c.strokeStyle = color; c.lineWidth = width; c.setLineDash(dash); c.lineJoin = "round"; c.lineCap = "round";
                 c.beginPath(); c.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
                 for(let i=1; i<TRACK_POINTS.length; i++) c.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
                 c.closePath(); c.stroke();
             };
-            
-            // Outer Fence (Visible Barrier)
-            renderCircuit(160, "#555"); // Foundation
-            renderCircuit(154, "#ffd700", [15, 15]); // Caution Tape look
-            
-            // Road Surface
-            renderCircuit(150, "#ccc"); 
-            renderCircuit(140, "#900", [20, 20]); // Curbing
-            renderCircuit(130, "#333"); // Asphalt
-            renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]); // Lane Marker
-            
+            renderCircuit(160, "#555"); renderCircuit(154, "#ffd700", [15, 15]); 
+            renderCircuit(150, "#ccc"); renderCircuit(140, "#900", [20, 20]); 
+            renderCircuit(130, "#333"); renderCircuit(2, "rgba(255,255,255,0.2)", [30, 30]); 
             this.skidMarks.forEach(s => s.draw(c));
             c.setLineDash([]); c.fillStyle = "white"; c.fillRect(390, 635, 15, 130);
-            
             this.obstacles.forEach(o => { o.update(); o.draw(c); });
             this.particles.forEach((p, i) => { p.update(); p.draw(c); if (p.life <= 0) this.particles.splice(i, 1); });
             this.car.draw(c); c.restore();
@@ -361,16 +415,19 @@
                 for(let o of this.obstacles) { 
                     if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) { collisionHazard = true; this.shake = 10; } 
                 }
-                
                 this.car.update(this.keys, this.ctx, collisionHazard);
-                
                 if (Math.abs(this.car.speed) > 2) this.particles.push(new Particle(this.car.x, this.car.y));
                 if (Math.abs(this.car.speed) > 5) this.skidMarks.push(new SkidMark(this.car.x, this.car.y, this.car.angle));
-                
                 if (this.car.x > 450 && this.car.x < 750 && this.car.y < 150) this.hasHitCheckpoint = true;
                 if (this.car.x > 380 && this.car.x < 420 && this.car.y > 630 && this.hasHitCheckpoint) {
-                    if (this.currentLap < 3) { this.currentLap++; this.hasHitCheckpoint = false; document.getElementById('lapCount').innerText = this.currentLap; }
-                    else { this.finishRace(); }
+                    if (this.currentLap < 3) { 
+                        this.currentLap++; 
+                        this.hasHitCheckpoint = false; 
+                        document.getElementById('lapCount').innerText = this.currentLap; 
+                        this.audio.playLap(); 
+                    } else { 
+                        this.finishRace(); 
+                    }
                 }
                 this.updateHUD();
             }
