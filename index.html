@@ -72,6 +72,19 @@
         button.secondary { background: #333; color: white; border: 1px solid #555; }
         
         .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 280px; }
+
+        /* Guide Styling */
+        .guide-box {
+            background: #1a1a1a; padding: 30px; border: 2px solid #ffd700;
+            border-radius: 12px; text-align: left; max-width: 500px; line-height: 1.5;
+        }
+        .guide-box h2 { color: #ffd700; margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .guide-box ul { list-style: none; padding: 0; }
+        .guide-box li { margin-bottom: 10px; display: flex; align-items: center; }
+        .key-hint { 
+            background: #444; padding: 2px 8px; border-radius: 4px; margin-right: 10px; 
+            font-family: monospace; border-bottom: 3px solid #222;
+        }
     </style>
 </head>
 <body>
@@ -95,8 +108,24 @@
         <input type="text" id="usernameInput" placeholder="ENTER DRIVER NAME" maxlength="12">
         <div class="btn-group">
             <button onclick="game.validateStart()">Start Race</button>
+            <button class="secondary" onclick="game.showGuide()">How to Play</button>
             <button class="secondary" onclick="game.showScoreboard()">Hall of Fame</button>
-            <button class="secondary" onclick="alert('Please close the tab to exit.')">Exit</button>
+        </div>
+    </div>
+
+    <div id="guide" class="ui">
+        <div class="guide-box">
+            <h2>DRIVER'S MANUAL</h2>
+            <ul>
+                <li><span class="key-hint">UP</span> Accelerate</li>
+                <li><span class="key-hint">DOWN</span> Brake / Reverse</li>
+                <li><span class="key-hint">LEFT/RIGHT</span> Steering</li>
+                <li><span class="key-hint">ESC</span> Return to Menu</li>
+            </ul>
+            <hr style="border: 0; border-top: 1px solid #444;">
+            <p><strong>Goal:</strong> Complete 3 laps as fast as possible.</p>
+            <p><strong>Note:</strong> Avoid grass and orange cones. Passing through the white line completes a lap.</p>
+            <button style="width:100%" onclick="game.showMenu()">Got it!</button>
         </div>
     </div>
 
@@ -131,9 +160,7 @@
         }
 
         async initEngine() {
-            if (this.ctx.state === 'suspended') {
-                await this.ctx.resume();
-            }
+            if (this.ctx.state === 'suspended') await this.ctx.resume();
             if (this.engineOsc) return;
             this.engineOsc = this.ctx.createOscillator();
             this.engineGain = this.ctx.createGain();
@@ -158,8 +185,7 @@
             if (this.ctx.state !== 'running') return;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+            osc.type = 'square'; osc.frequency.setValueAtTime(150, this.ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.2);
             gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
@@ -171,8 +197,7 @@
             if (this.ctx.state !== 'running') return;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(880, this.ctx.currentTime);
             gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
             osc.connect(gain); gain.connect(this.ctx.destination);
@@ -208,13 +233,10 @@
 
     class Obstacle {
         constructor(x, y, isDynamic = false) { 
-            this.x = x; this.baseX = x; this.y = y; 
-            this.isDynamic = isDynamic;
+            this.x = x; this.baseX = x; this.y = y; this.isDynamic = isDynamic;
             this.offset = Math.random() * Math.PI * 2;
         }
-        update() {
-            if(this.isDynamic) this.x = this.baseX + Math.sin(Date.now() / 600 + this.offset) * 80;
-        }
+        update() { if(this.isDynamic) this.x = this.baseX + Math.sin(Date.now() / 600 + this.offset) * 80; }
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y);
             ctx.fillStyle = "#a34100"; ctx.fillRect(-12, 8, 24, 4);
@@ -230,42 +252,24 @@
         update(keys, ctx, collisionHazard) {
             if (keys['ArrowUp']) this.speed += 0.16;
             if (keys['ArrowDown']) this.speed -= 0.10;
-            
             if (Math.abs(this.speed) > 0.1) {
                 let dir = this.speed > 0 ? 1 : -1;
                 if (keys['ArrowLeft']) this.angle -= 0.07 * dir;
                 if (keys['ArrowRight']) this.angle += 0.07 * dir;
             }
-
             this.speed *= 0.96;
             if (this.speed > 9.5) this.speed = 9.5;
             if (this.speed < -4.0) this.speed = -4.0;
-
-            if (collisionHazard) {
-                this.speed *= -0.4;
-                game.audio.playCrash();
-            }
-
-            const noseDist = 22;
-            const checkX = this.x + Math.cos(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
-            const checkY = this.y + Math.sin(this.angle) * (this.speed + (this.speed >= 0 ? noseDist : -noseDist));
-
+            if (collisionHazard) { this.speed *= -0.4; game.audio.playCrash(); }
+            const checkX = this.x + Math.cos(this.angle) * (this.speed + (this.speed >= 0 ? 22 : -22));
+            const checkY = this.y + Math.sin(this.angle) * (this.speed + (this.speed >= 0 ? 22 : -22));
             const pixel = ctx.getImageData(checkX, checkY, 1, 1).data;
             const isOffRoad = (pixel[1] > 70 && pixel[0] < 80) || pixel[3] === 0;
 
-            if (!isOffRoad) {
-                this.x += Math.cos(this.angle) * this.speed;
-                this.y += Math.sin(this.angle) * this.speed;
-            } else {
-                this.speed = -this.speed * 0.5;
-                this.x -= Math.cos(this.angle) * 2; 
-                this.y -= Math.sin(this.angle) * 2;
-                game.shake = 8;
-                game.audio.playCrash();
-            }
+            if (!isOffRoad) { this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed; }
+            else { this.speed = -this.speed * 0.5; this.x -= Math.cos(this.angle) * 2; this.y -= Math.sin(this.angle) * 2; game.shake = 8; game.audio.playCrash(); }
             game.audio.updateEngine(this.speed);
         }
-
         draw(ctx) {
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
             ctx.fillStyle = "#e60000"; ctx.fillRect(-22, -12, 44, 24);
@@ -279,8 +283,8 @@
         constructor() {
             this.canvas = document.getElementById('raceCanvas');
             this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-            this.audio = new AudioManager();
-            this.car = new Car(); this.obstacles = []; this.particles = []; this.skidMarks = []; this.keys = {}; 
+            this.audio = new AudioManager(); this.car = new Car(); 
+            this.obstacles = []; this.particles = []; this.skidMarks = []; this.keys = {}; 
             this.state = 'MENU'; this.shake = 0;
             this.bestTime = localStorage.getItem('raceBestTime') || null;
             this.username = localStorage.getItem('raceUser') || "";
@@ -305,16 +309,9 @@
 
         updateBestDisplay() { document.getElementById('best').innerText = this.bestTime ? `${this.bestTime}s` : "--"; }
 
-        validateStart() {
-            const name = document.getElementById('usernameInput').value.trim();
-            if(!name) return alert("Please enter your name to race!");
-            this.username = name;
-            localStorage.setItem('raceUser', name);
-            
-            // Resume/Init audio after user click
-            this.audio.initEngine().then(() => {
-                this.start();
-            });
+        showGuide() {
+            document.querySelectorAll('.ui').forEach(el => el.classList.remove('active'));
+            document.getElementById('guide').classList.add('active');
         }
 
         showMenu() {
@@ -325,6 +322,13 @@
             document.getElementById('gameHud').style.display = 'none';
             document.getElementById('exitBtn').style.display = 'none';
             document.getElementById('speedoContainer').style.display = 'none';
+        }
+
+        validateStart() {
+            const name = document.getElementById('usernameInput').value.trim();
+            if(!name) return alert("Please enter your name to race!");
+            this.username = name; localStorage.setItem('raceUser', name);
+            this.audio.initEngine().then(() => this.start());
         }
 
         showScoreboard() {
@@ -347,17 +351,14 @@
         }
 
         finishRace() {
-            this.state = 'FINISHED';
-            this.audio.playLap();
+            this.state = 'FINISHED'; this.audio.playLap();
             if(this.audio.engineGain) this.audio.engineGain.gain.setTargetAtTime(0, this.audio.ctx.currentTime, 0.5);
             const finalTime = parseFloat(((Date.now() - this.startTime) / 1000).toFixed(2));
             let scores = JSON.parse(localStorage.getItem('raceScores') || "[]");
             scores.push({name: this.username, time: finalTime});
             localStorage.setItem('raceScores', JSON.stringify(scores));
             if (!this.bestTime || finalTime < this.bestTime) { 
-                this.bestTime = finalTime; 
-                localStorage.setItem('raceBestTime', finalTime); 
-                this.updateBestDisplay(); 
+                this.bestTime = finalTime; localStorage.setItem('raceBestTime', finalTime); this.updateBestDisplay(); 
             }
             document.getElementById('gameHud').style.display = 'none';
             document.getElementById('exitBtn').style.display = 'none';
@@ -371,9 +372,7 @@
             for(let i=0; i<12; i++) {
                 let tx = Math.random()*1200, ty = Math.random()*800;
                 const p = this.ctx.getImageData(tx, ty, 1, 1).data;
-                if (p[0] === 68 && Math.sqrt((tx-400)**2 + (ty-700)**2) > 250) {
-                    this.obstacles.push(new Obstacle(tx, ty, false));
-                }
+                if (p[0] === 68 && Math.sqrt((tx-400)**2 + (ty-700)**2) > 250) this.obstacles.push(new Obstacle(tx, ty, false));
             }
             this.obstacles.push(new Obstacle(800, 700, true));
             this.obstacles.push(new Obstacle(100, 450, true));
@@ -381,8 +380,7 @@
         }
 
         drawTrack() {
-            const c = this.ctx;
-            c.save();
+            const c = this.ctx; c.save();
             if (this.shake > 0) { c.translate(Math.random()*this.shake, Math.random()*this.shake); this.shake *= 0.85; }
             c.fillStyle = "#2d5a27"; c.fillRect(0, 0, 1200, 800);
             const renderCircuit = (width, color, dash = []) => {
@@ -412,27 +410,18 @@
         loop() {
             if (this.state === 'PLAYING') {
                 let collisionHazard = false;
-                for(let o of this.obstacles) { 
-                    if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) { collisionHazard = true; this.shake = 10; } 
-                }
+                for(let o of this.obstacles) if (Math.sqrt((this.car.x - o.x)**2 + (this.car.y - o.y)**2) < 25) { collisionHazard = true; this.shake = 10; } 
                 this.car.update(this.keys, this.ctx, collisionHazard);
                 if (Math.abs(this.car.speed) > 2) this.particles.push(new Particle(this.car.x, this.car.y));
                 if (Math.abs(this.car.speed) > 5) this.skidMarks.push(new SkidMark(this.car.x, this.car.y, this.car.angle));
                 if (this.car.x > 450 && this.car.x < 750 && this.car.y < 150) this.hasHitCheckpoint = true;
                 if (this.car.x > 380 && this.car.x < 420 && this.car.y > 630 && this.hasHitCheckpoint) {
-                    if (this.currentLap < 3) { 
-                        this.currentLap++; 
-                        this.hasHitCheckpoint = false; 
-                        document.getElementById('lapCount').innerText = this.currentLap; 
-                        this.audio.playLap(); 
-                    } else { 
-                        this.finishRace(); 
-                    }
+                    if (this.currentLap < 3) { this.currentLap++; this.hasHitCheckpoint = false; document.getElementById('lapCount').innerText = this.currentLap; this.audio.playLap(); }
+                    else this.finishRace();
                 }
                 this.updateHUD();
             }
-            this.drawTrack();
-            requestAnimationFrame(() => this.loop());
+            this.drawTrack(); requestAnimationFrame(() => this.loop());
         }
     }
     const game = new RaceGame();
